@@ -1,0 +1,186 @@
+print("Kindly Wait Untill Camera Open") 
+import cv2#Ithu Module Used For Cam opearation
+import face_recognition# Module Used For Detect Face And Perform Operation
+import numpy as np # To Perform The decoded Values For Faces
+import os #  It Is Used For Fetch, modify,add the file in the system
+from datetime import datetime # used for time 
+import csv # To Save The File In csv then we can open in excel
+
+import smtplib # Used for mail 
+from email.mime.multipart import MIMEMultipart # When we want to send attachements or alternative text in mail 
+from email.mime.text import MIMEText  # Used For Sending text mails
+from email.mime.image import MIMEImage
+
+
+my = "visionofus01@gmail.com" # Mailid
+password = "cctkrdxqxkjjqmpg" # App Password
+re="visionofus01@gmail.com" # Reciver Mail Id
+
+# img=cv2.imread('Resources/1.png')
+
+# Load known face encodings and names
+known_encodings = [] # List for encodings
+known_names = [] # List for name that we train
+known_faces_dir = "known_faces/" # path of the pic we want to train
+for file in os.listdir(known_faces_dir): # It take each pic and give for file
+    image = face_recognition.load_image_file(known_faces_dir + file) #load the image
+    encoding = face_recognition.face_encodings(image)[0] # Encode The Face
+    known_encodings.append(encoding) # Add the encoding in list
+    known_names.append(os.path.splitext(file)[0]) # File name
+    student=known_names.copy() # The copy of known name used for generating absent
+
+# Initialize some variables
+face_locations = [] # list for face location
+face_encodings = [] #face Encoding
+face_names = []
+attendance_list = [] #Used For Entry 
+process_this_frame = True # Boolen value for while or if
+
+# Initialize video capture
+cap = cv2.VideoCapture(1) # Open The Web cam if the paramaetr change the scr will change
+now = datetime.now() #To get current time
+current_date = now.strftime("%Y-%m-%d") # Date 
+f=open("Attendance.csv","a+",newline='') # Opening the csv file in append mode
+lnwriter= csv.writer(f) # creating the obj for writing the lines
+
+while True:
+    # Capture video frame-by-frame
+    ret, frame = cap.read(0) # It Return the frame and size
+
+    # Resize frame for faster face recognition
+    small_frame = cv2.resize(frame, (0,0), fx=0.25, fy=0.25) #Resizing The Cam Box As We Want
+
+    # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
+    rgb_small_frame = small_frame[:, :, ::-1] 
+
+    # Only process every other frame to speed up the process
+    if process_this_frame:
+        # Find all the faces and face encodings in the current frame
+        face_locations = face_recognition.face_locations(rgb_small_frame)
+        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+
+        face_names = []
+        for face_encoding in face_encodings:
+            # See if the face is a match for any known face
+            matches = face_recognition.compare_faces(known_encodings, face_encoding)
+            name = "Unknown"
+
+
+            # If a match is found, use the first match
+            if True in matches:
+                first_match_index = matches.index(True) # fif match found add name in face_name
+                name = known_names[first_match_index]
+
+            face_names.append(name)
+            
+
+            # Add the name to the attendance list
+            if name not in attendance_list:
+                attendance_list.append(name) # If the name not in attendance list then add
+            
+            if name in face_names:
+                    if name in student:
+                        student.remove(name) # Remvoe the present student in absent list
+                        print(name+"  Present") # Display the name 
+                        now1 = datetime.now() # Date
+                        current_time = now1.strftime("%H-%M-%S") # Time In the Format
+                        lnwriter.writerow([name,current_date,current_time]) # Writing The Name And Date And  Time In  CSV
+            if name=="Unknown":
+                #  cv2.putText(frame,"Unkonown",(275,400))
+                # cv2.putText(frame, "Unknown Detected", (200, 200), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+                 current_time = now.strftime("%H-%M-%S")
+                 file_path = "D:/Vision Of Us/Unknown Photos/"+current_time+'.jpg'
+                 cv2.imwrite(file_path,frame)
+                 print("Unknown Detected")
+                 pic = MIMEMultipart()
+                 message = "Hello,\n\nThe Unknown person Detected.\n\nPhoto send by,\nThe Team "
+                 pic.attach(MIMEText(message))
+                 with open(file_path, "rb") as image_file:
+                    # Create a MIMEImage object and attach it to the message
+                    image = MIMEImage(image_file.read(), name=file_path)
+                    pic.attach(image)
+                 pic['Subject'] = " Unknown Detected " #Subject Of Mail
+                 server = smtplib.SMTP('smtp.gmail.com:587') # Connection of mail 
+                 server.ehlo() #  to identify the domain name of the sending host to SMTP before you issue a MAIL FROM command
+                 server.starttls() #to inform the email server that the email client wants to upgrade from
+                 server.login(my,password) # Login
+                 server.sendmail(my, re, pic.as_string())
+                 server.quit() # Eding The Connection
+                 print("The Unknown Email Sent")
+                
+
+
+
+    process_this_frame = not process_this_frame
+
+    # Display the results
+    for (top, right, bottom, left), name in zip(face_locations, face_names):
+        # Scale back up face locations since the frame we detected in was scaled to 1/4 size
+        top *= 4
+        right *= 4
+        bottom *= 4
+        left *= 4
+
+        # Draw a box around the face
+        cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)# 255 is red , 2  is thickness of box
+
+        # Draw a label with a name below the face
+        cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv2.FILLED) 
+        font = cv2.FONT_HERSHEY_DUPLEX
+    #     cv2.putText(img, name, (867, 127), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+    #     if name=="Reshi":
+    #      area="attur"
+    #      Gender="Male"
+    #      abt="His Name is reshi"
+    #      cv2.putText(img, area, (867, 255), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+    #      cv2.putText(img, Gender, (867, 389), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+    #      cv2.putText(img, abt, (867, 555), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+    #     elif name=="Gayathri":
+    #      area="Kodalampatti"
+    #      Gender="Female "
+    #      abt="Her Name is gayathri"
+    #      cv2.putText(img, area, (867, 255), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+    #      cv2.putText(img, Gender, (867, 389), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+    #      cv2.putText(img, abt, (867, 555), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+        cv2.putText(frame, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1) # Displaying name in the box bottom
+    # cap.set(3,640)
+    # cap.set(4,480)
+    # img[162:162+480,55:55+640]=frame
+     #Write Text (Where,What,Co-ordinates,Font,Size,Colour,Thickness,Stright Line)
+   
+    # # Display the resulting image
+    cv2.imshow('Attendance System', frame) # Displaying the cam 
+
+    # Exit on 'q' press
+    if cv2.waitKey(1) & 0xFF == ord('q'): # End The Cam if press q
+        break
+for i in student:
+        print(i,"Absent") # Absentlist
+
+
+
+
+# Mail
+email_body = "Absentees List : "+" ".join(student)
+msg = MIMEMultipart('alternative',None,[MIMEText(email_body,'html')]) # The Message 
+msg['Subject'] = " Absentees List " #Subject Of Mail
+msg['From'] = my # From Address
+msg['To'] = re # Reciver Address
+try:
+        server = smtplib.SMTP('smtp.gmail.com:587') # Connection of mail 
+        server.ehlo() #  to identify the domain name of the sending host to SMTP before you issue a MAIL FROM command
+        server.starttls() #to inform the email server that the email client wants to upgrade from
+        server.login(my,password) # Login
+        server.sendmail(my,re,msg.as_string())# Sending mail
+        server.quit() # Eding The Connection
+        print(f'Email Sent  :  {email_body}') # Confirmation
+except:
+        print("Error") # If Error
+# Save the attendance list to a file
+f1=open("Attendance.csv","r") # Uploading In Drive
+for i in f1:
+        txt=open("D:\Vision Of Us\_store\_file.txt","a+")
+        txt.write(i)
+print("Success")# All Done
+
+# Release the capture
